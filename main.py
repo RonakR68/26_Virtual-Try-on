@@ -1,14 +1,12 @@
 import mediapipe as mp
 import cv2
 import numpy as np
-import math
 
-mp_drawing = mp.solutions.drawing_utils
 mp_holistic = mp.solutions.holistic
 mp_hands = mp.solutions.hands
 
 # Load the wristwatch image
-wristwatch_image = cv2.imread('wristwatch.png')
+wristwatch_image = cv2.imread('watch1.png')
 
 cap = cv2.VideoCapture(0)
 
@@ -16,10 +14,25 @@ cap = cv2.VideoCapture(0)
 initial_width = wristwatch_image.shape[1]
 initial_height = wristwatch_image.shape[0]
 
+# Define the background color to be treated as transparent
+background_color = [255, 255, 255]  # Set this to the color of your background
+
 # Create a resizable window
 cv2.namedWindow("Wristwatch Virtual Try On", cv2.WINDOW_NORMAL)
 
-# Define the function to calculate wrist angle
+def rotate_image(image, angle):
+    # Get image dimensions
+    (h, w) = image.shape[:2]
+
+    # Calculate the center of the image
+    center = (w // 2, h // 2)
+
+    # Rotate the image
+    rot_mat = cv2.getRotationMatrix2D(center, angle, 1.0)
+    rotated_image = cv2.warpAffine(image, rot_mat, (w, h), flags=cv2.INTER_LINEAR, borderMode=cv2.BORDER_CONSTANT, borderValue=(255, 255, 255))
+
+    return rotated_image
+
 def wrist_angle(image, hand):
     # fix the point where the camera is located, the upper middle point of the screen
     a = np.array([1000, 0]) 
@@ -51,6 +64,31 @@ def wrist_angle(image, hand):
 
     return image
 
+def wrist_orientation(hand):
+    wrist_point = np.array([hand.landmark[0].x, hand.landmark[0].y])
+    middle_finger_mcp_point = np.array([hand.landmark[9].x, hand.landmark[9].y])
+
+    hand_vector = middle_finger_mcp_point - wrist_point
+    reference_vector = np.array([1, 0])
+
+    hand_vector_normalized = hand_vector / np.linalg.norm(hand_vector)
+    reference_vector_normalized = reference_vector / np.linalg.norm(reference_vector)
+
+    cross_product = np.cross(np.append(hand_vector_normalized, 0), np.append(reference_vector_normalized, 0))
+    cross_product_magnitude = np.linalg.norm(cross_product)
+
+    if cross_product_magnitude == 0:
+        rotation_angle = 0
+    else:
+        cross_product_sign = np.sign(cross_product[2])
+        rotation_angle = cross_product_sign * np.arccos(np.dot(hand_vector_normalized, reference_vector_normalized))
+        rotation_angle_degrees = np.degrees(rotation_angle)
+
+        if rotation_angle_degrees > 180:
+            rotation_angle_degrees -= 360
+
+    return float(rotation_angle_degrees)
+
 with mp_holistic.Holistic(min_detection_confidence=0.5, min_tracking_confidence=0.5) as holistic:
     with mp_hands.Hands(min_detection_confidence=0.5, min_tracking_confidence=0.5) as hands:
         while cap.isOpened():
@@ -68,7 +106,7 @@ with mp_holistic.Holistic(min_detection_confidence=0.5, min_tracking_confidence=
             # Recolor image back to BGR for rendering
             image = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
             
-            # Right hand landmarks
+            # right hand landmarks
             right_hand_landmarks = results.right_hand_landmarks
             if right_hand_landmarks is not None:
                 # Get the wrist landmark
@@ -76,7 +114,6 @@ with mp_holistic.Holistic(min_detection_confidence=0.5, min_tracking_confidence=
 
                 # Calculate the depth of the wrist landmark
                 wrist_depth = wrist_landmark.z
-                #print(wrist_depth)
 
                 # Calculate the scaling factor based on depth
                 scale_factor = 0.1 + (abs(wrist_depth) * 2)
@@ -102,8 +139,14 @@ with mp_holistic.Holistic(min_detection_confidence=0.5, min_tracking_confidence=
                 # Resize the wristwatch image to the calculated dimensions
                 wristwatch_image_resized = cv2.resize(wristwatch_image, (scaled_width, scaled_height))
 
-                # Overlay the wristwatch image onto the frame
-                frame[y_position:y_position + scaled_height, x_position:x_position + scaled_width] = wristwatch_image_resized
+                # Rotate the wristwatch image based on wrist orientation
+                rotated_wristwatch = rotate_image(wristwatch_image_resized, wrist_orientation(right_hand_landmarks))
+
+                # Create a mask based on the background color
+                mask = np.all(rotated_wristwatch[:, :, :3] != background_color, axis=-1)
+
+                # Apply the mask to the frame
+                frame[y_position:y_position + scaled_height, x_position:x_position + scaled_width][mask] = rotated_wristwatch[mask]
 
                 # Call the wrist_angle function to calculate and display wrist angle
                 frame = wrist_angle(frame, right_hand_landmarks)
