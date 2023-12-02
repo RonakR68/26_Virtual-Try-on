@@ -20,18 +20,52 @@ background_color = [255, 255, 255]  # Set this to the color of your background
 # Create a resizable window
 cv2.namedWindow("Wristwatch Virtual Try On", cv2.WINDOW_NORMAL)
 
-def rotate_image(image, angle):
-    # Get image dimensions
-    (h, w) = image.shape[:2]
-
-    # Calculate the center of the image
-    center = (w // 2, h // 2)
-
-    # Rotate the image
-    rot_mat = cv2.getRotationMatrix2D(center, angle, 1.0)
-    rotated_image = cv2.warpAffine(image, rot_mat, (w, h), flags=cv2.INTER_LINEAR, borderMode=cv2.BORDER_CONSTANT, borderValue=(255, 255, 255))
-
+def rotate_image(image, angle, background_color):
+    image_height, image_width = image.shape[:2]
+    diagonal_square = (image_width * image_width) + (image_height * image_height)
+    
+    # Calculate the diagonal of the bounding box
+    diagonal = round(np.sqrt(diagonal_square))
+    
+    # Calculate the amount of padding needed on each side
+    padding_top = round((diagonal - image_height) / 2)
+    padding_bottom = round((diagonal - image_height) / 2)
+    padding_left = round((diagonal - image_width) / 2)
+    padding_right = round((diagonal - image_width) / 2)
+    
+    # Apply padding to the image
+    padded_image = cv2.copyMakeBorder(
+        image,
+        top=padding_top,
+        bottom=padding_bottom,
+        left=padding_left,
+        right=padding_right,
+        borderType=cv2.BORDER_CONSTANT,
+        value=background_color  # Set this to the color of your background
+    )
+    
+    # Get the new dimensions after padding
+    padded_height = padded_image.shape[0]
+    padded_width = padded_image.shape[1]
+    
+    # Calculate the center of the padded image
+    center = (padded_width / 2, padded_height / 2)
+    
+    # Get the rotation matrix
+    transform_matrix = cv2.getRotationMatrix2D(center, angle, 1.0)
+    
+    # Rotate the padded image
+    rotated_image = cv2.warpAffine(
+        padded_image,
+        transform_matrix,
+        (diagonal, diagonal),
+        flags=cv2.INTER_LANCZOS4,
+        borderMode=cv2.BORDER_CONSTANT,
+        borderValue=background_color  # Set this to the color of your background
+    )
+    
     return rotated_image
+
 
 def wrist_angle(image, hand):
     # fix the point where the camera is located, the upper middle point of the screen
@@ -140,13 +174,15 @@ with mp_holistic.Holistic(min_detection_confidence=0.5, min_tracking_confidence=
                 wristwatch_image_resized = cv2.resize(wristwatch_image, (scaled_width, scaled_height))
 
                 # Rotate the wristwatch image based on wrist orientation
-                rotated_wristwatch = rotate_image(wristwatch_image_resized, wrist_orientation(right_hand_landmarks))
+                rotation_angle_degrees = wrist_orientation(right_hand_landmarks)
+                rotated_wristwatch = rotate_image(wristwatch_image_resized, rotation_angle_degrees, background_color)
 
                 # Create a mask based on the background color
                 mask = np.all(rotated_wristwatch[:, :, :3] != background_color, axis=-1)
 
                 # Apply the mask to the frame
-                frame[y_position:y_position + scaled_height, x_position:x_position + scaled_width][mask] = rotated_wristwatch[mask]
+                roi = frame[y_position:y_position + rotated_wristwatch.shape[0], x_position:x_position + rotated_wristwatch.shape[1]]
+                roi[mask] = rotated_wristwatch[mask]
 
                 # Call the wrist_angle function to calculate and display wrist angle
                 frame = wrist_angle(frame, right_hand_landmarks)
