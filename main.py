@@ -1,12 +1,14 @@
 import mediapipe as mp
 import cv2
 import numpy as np
+import math
 
 mp_holistic = mp.solutions.holistic
 mp_hands = mp.solutions.hands
 
 # Load the wristwatch image
-wristwatch_image = cv2.imread('watch1.png')
+img_path = 'watch1.png'
+wristwatch_image = cv2.imread(img_path)
 
 cap = cv2.VideoCapture(0)
 
@@ -15,7 +17,7 @@ initial_width = wristwatch_image.shape[1]
 initial_height = wristwatch_image.shape[0]
 
 # Define the background color to be treated as transparent
-background_color = [255, 255, 255]  # Set this to the color of your background
+background_color = [255, 255, 255]
 
 # Create a resizable window
 cv2.namedWindow("Wristwatch Virtual Try On", cv2.WINDOW_NORMAL)
@@ -41,7 +43,7 @@ def rotate_image(image, angle, background_color):
         left=padding_left,
         right=padding_right,
         borderType=cv2.BORDER_CONSTANT,
-        value=background_color  # Set this to the color of your background
+        value=background_color
     )
     
     # Get the new dimensions after padding
@@ -61,7 +63,7 @@ def rotate_image(image, angle, background_color):
         (diagonal, diagonal),
         flags=cv2.INTER_LANCZOS4,
         borderMode=cv2.BORDER_CONSTANT,
-        borderValue=background_color  # Set this to the color of your background
+        borderValue=background_color
     )
     
     return rotated_image
@@ -87,14 +89,14 @@ def wrist_angle(image, hand):
     # Convert to degrees
     wrist_ang = radians * 180.0 / np.pi
     wrist_ang = round(wrist_ang, 2)
-
-    coords = tuple(
-        np.array((hand.landmark[mp_hands.HandLandmark.WRIST].x * 640 + 20, 
-                  hand.landmark[mp_hands.HandLandmark.WRIST].y * 480 + 20)).astype(int))
+    #print(wrist_ang)
+    # coords = tuple(
+    #     np.array((hand.landmark[mp_hands.HandLandmark.WRIST].x * 640 + 20, 
+    #               hand.landmark[mp_hands.HandLandmark.WRIST].y * 480 + 20)).astype(int))
     
-    cv2.putText(image, f'Wrist Angle: {wrist_ang} degrees',
-                (10,80),
-                cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 0), 1, cv2.LINE_AA)
+    # cv2.putText(image, f'Wrist Angle: {wrist_ang} degrees',
+    #             (10,80),
+    #             cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 0), 1, cv2.LINE_AA)
 
     return image
 
@@ -129,6 +131,38 @@ def get_direction_vector(hand, point1, point2):
     direction_vector = p2 - p1
     return direction_vector
 
+def get_dist(hand,point1,point2):
+    x1 = hand.landmark[point1].x*100
+    y1 = hand.landmark[point1].y*100
+    x2 = hand.landmark[point2].x*100
+    y2 = hand.landmark[point2].y*100
+    #print(f"({x1},{y1}), ({x2},{y2})")
+    dist = int(math.sqrt((x2-x1)**2 + (y2-y1)**2))
+    return dist
+
+def get_wrist_width(frame, hand):
+    # Get the coordinates of point 0 (wrist)
+    wrist_x, wrist_y = int(hand.landmark[0].x * frame.shape[1]), int(hand.landmark[0].y * frame.shape[0])
+
+    # Get the coordinates of point 1 (INDEX_FINGER_MCP)
+    index_finger_mcp_x = int(hand.landmark[1].x * frame.shape[1])
+    index_finger_mcp_y = int(hand.landmark[1].y * frame.shape[0])
+
+    # Calculate the Euclidean distance between point 0 and point 1
+    wrist_width = np.sqrt((index_finger_mcp_x - wrist_x)**2 + (index_finger_mcp_y - wrist_y)**2)
+    wrist_width *= 2.0
+
+    # Calculate perpendicular lines passing through point 0
+    perpendicular_upward = (wrist_x, int(wrist_y - wrist_width / 2))
+    perpendicular_downward = (wrist_x, int(wrist_y + wrist_width / 2))
+
+    # Draw lines on the frame
+    cv2.line(frame, (wrist_x, wrist_y), perpendicular_upward, (0, 255, 0), 2)
+    cv2.line(frame, (wrist_x, wrist_y), perpendicular_downward, (0, 255, 0), 2)
+
+    return frame,wrist_width
+
+
 with mp_holistic.Holistic(min_detection_confidence=0.5, min_tracking_confidence=0.5) as holistic:
     with mp_hands.Hands(min_detection_confidence=0.5, min_tracking_confidence=0.5) as hands:
         while cap.isOpened():
@@ -161,9 +195,14 @@ with mp_holistic.Holistic(min_detection_confidence=0.5, min_tracking_confidence=
 
                 # Calculate the scaling factor based on depth
                 scale_factor = 0.1 + (abs(wrist_depth) * 2)
-
+                scale_factor = (scale_factor * get_dist(right_hand_landmarks,5,17)/12)
+                scale_factor = max(0.1, scale_factor)
+                #print(scale_factor)
+                
+                #wrist_width = get_wrist_width(frame, right_hand_landmarks)[1]
                 # Calculate the scaled dimensions of the wristwatch image
                 scaled_width = int(initial_width * scale_factor)
+                #scaled_height = int(wrist_width)
                 scaled_height = int(initial_height * scale_factor)
                 #print(f"scaled ht: {scaled_height}")
 
@@ -207,6 +246,8 @@ with mp_holistic.Holistic(min_detection_confidence=0.5, min_tracking_confidence=
 
                     # Call the wrist_angle function to calculate and display wrist angle
                     frame = wrist_angle(frame, right_hand_landmarks)
+
+                    #frame = get_wrist_width(frame, right_hand_landmarks)
 
             cv2.imshow('Wristwatch Virtual Try On', frame)
 
