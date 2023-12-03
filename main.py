@@ -123,6 +123,12 @@ def wrist_orientation(hand):
 
     return float(rotation_angle_degrees)
 
+def get_direction_vector(hand, point1, point2):
+    p1 = np.array([hand.landmark[point1].x, hand.landmark[point1].y])
+    p2 = np.array([hand.landmark[point2].x, hand.landmark[point2].y])
+    direction_vector = p2 - p1
+    return direction_vector
+
 with mp_holistic.Holistic(min_detection_confidence=0.5, min_tracking_confidence=0.5) as holistic:
     with mp_hands.Hands(min_detection_confidence=0.5, min_tracking_confidence=0.5) as hands:
         while cap.isOpened():
@@ -146,6 +152,10 @@ with mp_holistic.Holistic(min_detection_confidence=0.5, min_tracking_confidence=
                 # Get the wrist landmark
                 wrist_landmark = right_hand_landmarks.landmark[0]
 
+                # Get the direction vector between wrist and index finger MCP (point 5)
+                direction_vector = get_direction_vector(right_hand_landmarks, 0, 5)
+                #print(direction_vector)
+
                 # Calculate the depth of the wrist landmark
                 wrist_depth = wrist_landmark.z
 
@@ -155,20 +165,25 @@ with mp_holistic.Holistic(min_detection_confidence=0.5, min_tracking_confidence=
                 # Calculate the scaled dimensions of the wristwatch image
                 scaled_width = int(initial_width * scale_factor)
                 scaled_height = int(initial_height * scale_factor)
+                #print(f"scaled ht: {scaled_height}")
 
                 # Calculate the x, y position for overlaying the wristwatch
                 x_position = int(wrist_landmark.x * frame.shape[1] - scaled_width // 2)
                 y_position = int(wrist_landmark.y * frame.shape[0] - scaled_height // 2)
 
+                # Adjust the x_position based on the direction vector
+                x_offset = 45 
+                x_position -= int((direction_vector[0] * scaled_height) + x_offset)
+                #print(x_position)
+
+                # Adjust the y_position based on the direction vector
+                y_offset = 10 
+                y_position += int(wrist_orientation(right_hand_landmarks) + y_offset)
+                #print(y_position)
+
                 # Ensure the overlay stays within the frame boundaries
-                if x_position < 0:
-                    x_position = 0
-                if y_position < 0:
-                    y_position = 0
-                if x_position + scaled_width > frame.shape[1]:
-                    x_position = frame.shape[1] - scaled_width
-                if y_position + scaled_height > frame.shape[0]:
-                    y_position = frame.shape[0] - scaled_height
+                x_position = max(0, min(x_position, frame.shape[1] - scaled_width))
+                y_position = max(0, min(y_position, frame.shape[0] - scaled_height))
 
                 # Resize the wristwatch image to the calculated dimensions
                 wristwatch_image_resized = cv2.resize(wristwatch_image, (scaled_width, scaled_height))
