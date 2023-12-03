@@ -177,15 +177,21 @@ with mp_holistic.Holistic(min_detection_confidence=0.5, min_tracking_confidence=
                 rotation_angle_degrees = wrist_orientation(right_hand_landmarks)
                 rotated_wristwatch = rotate_image(wristwatch_image_resized, rotation_angle_degrees, background_color)
 
-                # Create a mask based on the background color
-                mask = np.all(rotated_wristwatch[:, :, :3] != background_color, axis=-1)
+                # Calculate the dimensions of the region of interest (roi)
+                roi_width = min(rotated_wristwatch.shape[1], frame.shape[1] - x_position)
+                roi_height = min(rotated_wristwatch.shape[0], frame.shape[0] - y_position)
 
-                # Apply the mask to the frame
-                roi = frame[y_position:y_position + rotated_wristwatch.shape[0], x_position:x_position + rotated_wristwatch.shape[1]]
-                roi[mask] = rotated_wristwatch[mask]
+                # Ensure the dimensions are valid
+                if roi_width > 0 and roi_height > 0:
+                    # Create a mask based on the background color
+                    mask = np.all(rotated_wristwatch[:roi_height, :roi_width, :3] != background_color, axis=-1)
 
-                # Call the wrist_angle function to calculate and display wrist angle
-                frame = wrist_angle(frame, right_hand_landmarks)
+                    # Apply the mask to the frame
+                    roi = frame[y_position:y_position + roi_height, x_position:x_position + roi_width]
+                    roi[mask] = rotated_wristwatch[:roi_height, :roi_width][mask]
+
+                    # Call the wrist_angle function to calculate and display wrist angle
+                    frame = wrist_angle(frame, right_hand_landmarks)
 
             cv2.imshow('Wristwatch Virtual Try On', frame)
 
