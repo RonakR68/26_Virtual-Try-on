@@ -1,6 +1,6 @@
 # Virtual Try On
 
-Welcome to the Virtual Try On project! This application allows you to virtually try on various items using your webcam. Below are the instructions to set up and run the project.
+Welcome to the Virtual Try On project! This application allows you to virtually try on various wrist watches (Images) using your webcam. Below are the instructions to set up and run the project.
 
 ## Technologies Used
 - HTML
