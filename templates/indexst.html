@@ -29,7 +29,6 @@
     <!-- Main Stylesheet File -->
     <link href="{{ url_for('static', filename='css/style.css') }}" rel="stylesheet">
 
-
 </head>
 
 <body>
@@ -39,11 +38,6 @@
 ============================-->
 <header id="header">
     <div class="container-fluid">
-
-        <div id="logo" class="pull-left">
-            <h1><a href="#intro" class="scrollto">WatchIt!</a></h1>
-
-        </div>
 
         <nav id="nav-menu-container">
             <ul class="nav-menu">
@@ -76,10 +70,10 @@
                         <div class="carousel-content">
                             <h2>Try Look before Buy!</h2>
                             <p>Want to test watch look before order? We bring best watches from world at your ease, and you can
-                                virtually try them with our Engineers developed latest AR Tech</p>
-                            <a href="#featured-services" class="btn-get-started scrollto">Get Started</a>
+                                virtually try them using latest AR Tech developed by our Engineers</p>
+                            <a href="#" class="btn-get-started scrollto" id="getStartedLink">Get Started</a>
                             
-                            <div id="cameraContainer" class="camera-container">
+                            <div id="cameraContainer" class="camera-container" style="display: none;">
                                    <!-- Camera window will be inserted here -->
                                    <img src="{{ url_for('video_feed') }}" width="100%" height="580">
                             </div>
@@ -127,47 +121,46 @@
 
             <header class="section-header">
                 <h3>Explore watches</h3>
-                <p> Choose from hundreds of leading watches brands. Choose the watch category</p>
+                <p> Choose from variety of leading watch brands. Choose the watch category</p>
             </header>
 
             <div class="row about-cols">
 
                 <div class="col-md-4 wow fadeInUp">
-                    <div class="about-col">
-                        <div class="img">
-                            <img src="{{ url_for('static', filename='img/about-mission.jpg') }}" alt="" class="img-fluid">
+                    <div class="about-col" id="watch1.png">
+                        <div class="img" onclick="selectImage('watch1.png')">
+                            <img src="{{ url_for('static', filename='img/watch1.png') }}" alt="" class="img-fluid" data-image="watch1.png">
                             <div class="icon"><i class="ion-ios-speedometer-outline"></i></div>
                         </div>
                         <h2 class="title"><a id="analogCategoryButton" href="#">Analog</a> </h2>
                         <p>
-                            Keep it simple
+                            Keep it simple!
                         </p>
                     </div>
                 </div>
 
-
                 <div class="col-md-4 wow fadeInUp" data-wow-delay="0.1s">
-                    <div class="about-col">
-                        <div class="img">
-                            <img src="{{ url_for('static', filename='img/about-plan.jpg') }}" alt="" class="img-fluid">
+                    <div class="about-col" id="watch2.png">
+                        <div class="img" onclick="selectImage('watch2.png')">
+                            <img src="{{ url_for('static', filename='img/watch2.png') }}" alt="" class="img-fluid" data-image="watch2.png">
                             <div class="icon"><i class="ion-ios-list-outline"></i></div>
                         </div>
-                        <h2 class="title"><a id="smartCategoryButton" href="#">Smart Watch</a></h2>
+                        <h2 class="title"><a id="smartCategoryButton" href="#">Digital</a></h2>
                         <p>
-                            Go smart!
+                            Go Modern!
                         </p>
                     </div>
                 </div>
 
                 <div class="col-md-4 wow fadeInUp" data-wow-delay="0.2s">
-                    <div class="about-col">
-                        <div class="img">
-                            <img src="{{ url_for('static', filename='img/about-vision.jpg') }}" alt="" class="img-fluid">
+                    <div class="about-col" id="watch3.png">
+                        <div class="img" onclick="selectImage('watch3.png')">
+                            <img src="{{ url_for('static', filename='img/watch3.png') }}" alt="" class="img-fluid" data-image="watch3.png">
                             <div class="icon"><i class="ion-ios-eye-outline"></i></div>
                         </div>
-                        <h2 class="title"><a id="luxuryCategoryButton" href="#">Luxury</a></h2>
+                        <h2 class="title"><a id="luxuryCategoryButton" href="#">Smart</a></h2>
                         <p>
-                            Stand out!
+                            Be Smart!
                         </p>
                     </div>
                 </div>
@@ -267,7 +260,6 @@
 
         </div>
     </section>
-
 
 
 <a href="#" class="back-to-top"><i class="fa fa-chevron-up"></i></a>

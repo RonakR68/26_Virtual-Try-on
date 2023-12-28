@@ -1,14 +1,18 @@
-from flask import Flask, render_template, Response
+from flask import Flask, render_template, Response, request, jsonify
 import cv2
 import numpy as np
 import mediapipe as mp
+import math
+
 
 app = Flask(__name__)
 
 mp_holistic = mp.solutions.holistic
 mp_hands = mp.solutions.hands
 
-wristwatch_image = cv2.imread('watch1.png')
+default_image_path = './static/img/watch1.png'
+
+wristwatch_image = cv2.imread(default_image_path)
 initial_width = wristwatch_image.shape[1]
 initial_height = wristwatch_image.shape[0]
 background_color = [255, 255, 255]
@@ -127,6 +131,37 @@ def get_direction_vector(hand, point1, point2):
     direction_vector = p2 - p1
     return direction_vector
 
+def get_dist(hand,point1,point2):
+    x1 = hand.landmark[point1].x*100
+    y1 = hand.landmark[point1].y*100
+    x2 = hand.landmark[point2].x*100
+    y2 = hand.landmark[point2].y*100
+    #print(f"({x1},{y1}), ({x2},{y2})")
+    dist = int(math.sqrt((x2-x1)**2 + (y2-y1)**2))
+    return dist
+
+def get_wrist_width(frame, hand):
+    # Get the coordinates of point 0 (wrist)
+    wrist_x, wrist_y = int(hand.landmark[0].x * frame.shape[1]), int(hand.landmark[0].y * frame.shape[0])
+
+    # Get the coordinates of point 1 (INDEX_FINGER_MCP)
+    index_finger_mcp_x = int(hand.landmark[1].x * frame.shape[1])
+    index_finger_mcp_y = int(hand.landmark[1].y * frame.shape[0])
+
+    # Calculate the Euclidean distance between point 0 and point 1
+    wrist_width = np.sqrt((index_finger_mcp_x - wrist_x)**2 + (index_finger_mcp_y - wrist_y)**2)
+    wrist_width *= 2.0
+
+    # Calculate perpendicular lines passing through point 0
+    perpendicular_upward = (wrist_x, int(wrist_y - wrist_width / 2))
+    perpendicular_downward = (wrist_x, int(wrist_y + wrist_width / 2))
+
+    # Draw lines on the frame
+    cv2.line(frame, (wrist_x, wrist_y), perpendicular_upward, (0, 255, 0), 2)
+    cv2.line(frame, (wrist_x, wrist_y), perpendicular_downward, (0, 255, 0), 2)
+
+    return frame,wrist_width
+
 def generate_frames(cap):
     with mp_holistic.Holistic(min_detection_confidence=0.5, min_tracking_confidence=0.5) as holistic:
         with mp_hands.Hands(min_detection_confidence=0.5, min_tracking_confidence=0.5) as hands:
@@ -135,49 +170,92 @@ def generate_frames(cap):
 
                 if not ret:
                     continue
-
+                
+                # Recolor Feed
                 image = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+                # Make Detections with holistic model
                 results = holistic.process(image)
+                # Recolor image back to BGR for rendering
                 image = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
 
+                # right hand landmarks
                 right_hand_landmarks = results.right_hand_landmarks
                 if right_hand_landmarks is not None:
+
+                     # Get the wrist landmark
                     wrist_landmark = right_hand_landmarks.landmark[0]
+
+                    # Get the direction vector between wrist and index finger MCP (point 5)
                     direction_vector = get_direction_vector(right_hand_landmarks, 0, 5)
+
+                    #calculate depth of the wrist
                     wrist_depth = wrist_landmark.z
+
+                    # Calculate the scaling factor based on depth
                     scale_factor = 0.1 + (abs(wrist_depth) * 2)
+                    scale_factor = (scale_factor * get_dist(right_hand_landmarks,5,17)/15)
+                    scale_factor = max(0.1, scale_factor)
+
+                    # Calculate the scaled dimensions of the wristwatch image
                     scaled_width = int(initial_width * scale_factor)
                     scaled_height = int(initial_height * scale_factor)
 
+                    # Calculate the x, y position for overlaying the wristwatch
                     x_position = int(wrist_landmark.x * frame.shape[1] - scaled_width // 2)
                     y_position = int(wrist_landmark.y * frame.shape[0] - scaled_height // 2)
+
+                    # Adjust the x_position and y_position based on the direction vector
                     x_offset = 45
                     x_position -= int((direction_vector[0] * scaled_height) + x_offset)
                     y_offset = 10
                     y_position += int(wrist_orientation(right_hand_landmarks) + y_offset)
 
+                    # Ensure the overlay stays within the frame boundaries
                     x_position = max(0, min(x_position, frame.shape[1] - scaled_width))
                     y_position = max(0, min(y_position, frame.shape[0] - scaled_height))
 
+                    # Resize the wristwatch image to the calculated dimensions
                     wristwatch_image_resized = cv2.resize(wristwatch_image, (scaled_width, scaled_height))
+
+                    # Rotate the wristwatch image based on wrist orientation
                     rotation_angle_degrees = wrist_orientation(right_hand_landmarks)
                     rotated_wristwatch = rotate_image(wristwatch_image_resized, rotation_angle_degrees, background_color)
 
+                    # Calculate the dimensions of the region of interest (roi)
                     roi_width = min(rotated_wristwatch.shape[1], frame.shape[1] - x_position)
                     roi_height = min(rotated_wristwatch.shape[0], frame.shape[0] - y_position)
 
+                    # Ensure the dimensions are valid
                     if roi_width > 0 and roi_height > 0:
+
+                        # Create a mask based on the background color
                         mask = np.all(rotated_wristwatch[:roi_height, :roi_width, :3] != background_color, axis=-1)
+
+                        # Apply the mask to the frame
                         roi = frame[y_position:y_position + roi_height, x_position:x_position + roi_width]
                         roi[mask] = rotated_wristwatch[:roi_height, :roi_width][mask]
 
-                        frame = wrist_angle(frame, right_hand_landmarks)
+                        #frame = wrist_angle(frame, right_hand_landmarks)
 
                 ret, buffer = cv2.imencode('.jpg', frame)
                 frame = buffer.tobytes()
 
                 yield (b'--frame\r\n'
                        b'Content-Type: image/jpeg\r\n\r\n' + frame + b'\r\n')
+
+@app.route('/change_watch_category', methods=['POST'])
+def change_watch_category():
+    try:
+        data = request.get_json()
+        image_name = data['imageName']
+        # print (image_name)
+        global wristwatch_image
+        wristwatch_image = cv2.imread(f"./static/img/{image_name}")
+        # print("updated wrist watch image")
+        return jsonify({'status': 'success', 'message': 'Image name received successfully'})
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)})
+
 
 @app.route('/')
 def index():

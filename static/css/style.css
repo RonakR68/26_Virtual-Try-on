@@ -726,15 +726,28 @@ body.mobile-nav-active #mobile-nav-toggle {
   border-radius: 0 0 4px 4px;
   box-shadow: 0px 2px 12px rgba(0, 0, 0, 0.08);
   margin-bottom: 20px;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
 }
 
 #about .about-col .img {
   position: relative;
+  flex-grow: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
 }
 
 #about .about-col .img img {
   border-radius: 4px 4px 0 0;
+  max-width: 100%;
+  max-height: 100%;
+  height: auto;
+  width: auto;
 }
+
 
 #about .about-col .icon {
   width: 64px;
@@ -1606,6 +1619,10 @@ body.mobile-nav-active #mobile-nav-toggle {
   }
 
   #nav-menu-container {
+    position: fixed;
+    top: 0;
+    width: 100%;
+    background-color: #000;
     padding-right: 60px;
   }
 }

@@ -8,6 +8,7 @@ async function getCamera() {
         const cameraContainer = document.getElementById("cameraContainer");
         cameraContainer.innerHTML = '';
         cameraContainer.appendChild(videoElement);
+
     } catch (error) {
         console.error("Error accessing camera:", error);
     }
@@ -25,6 +26,58 @@ document.getElementById("analogCategoryButton").addEventListener("click", () => 
 document.getElementById("smartCategoryButton").addEventListener("click", () => {
     getCamera();
 });
+
+document.addEventListener("DOMContentLoaded", function () {
+    selectImage('watch1.png');
+});
+
+let previousSelectedCol = document.getElementById("watch1.png");
+
+function selectImage(imageName) {
+
+    // Call the getCamera function with the selected image name
+    console.log(imageName);
+    const selectedCol = document.getElementById(imageName);
+    previousSelectedCol.style.border = 'none';
+    selectedCol.style.border = '5px solid #007BFF';
+    previousSelectedCol = selectedCol;
+
+    fetch('/change_watch_category', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ imageName: imageName }),
+    })
+    .then(response => response.json())
+    .then(data => {
+        // Log the response from the backend
+        console.log(data);
+    })
+    .catch(error => {
+        console.error('Error sending image name to the backend:', error);
+    });
+}
+
+// Add an event listener for the "Get Started" link
+document.getElementById("getStartedLink").addEventListener("click", () => {
+    toggleCameraContainerVisibility();
+    return false;
+});
+
+function toggleCameraContainerVisibility() {
+    const cameraContainer = document.getElementById("cameraContainer");
+
+    // Toggle the visibility of the cameraContainer
+    if (cameraContainer.style.display === "none") {
+        cameraContainer.style.display = "block";
+        getStartedLink.innerText = "Go Back";
+    } else {
+        cameraContainer.style.display = "none";
+        getStartedLink.innerText = "Get Started";
+    }
+}
+
 
 // Inline CSS styles for camera container and watch category buttons
 const styles = `
@@ -60,10 +113,10 @@ const styles = `
 .about-col a:hover {
     color: #007BFF;
 }
+
 `;
 
 // Create a <style> element to inject the styles
 const styleElement = document.createElement("style");
 styleElement.innerHTML = styles;
 document.head.appendChild(styleElement);
-
